@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Post;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
@@ -40,11 +41,14 @@ class BlogController extends AbstractController
 
             $queryBuilder = $this->postRepository->createQueryBuilder('p');
 
-            /*
-            if ($createdSince !== null) {
-                $queryBuilder->andWhere('p.posted >= :createdSince')->setParameter('createdSince', new \DateTime($createdSince));
+            $date = \DateTime::createFromFormat('Y-m-d H:i:s', $createdSince);
+
+            if (!$date) {
+                return new Response("Date not valid. Use format: Y-m-d H:i:s", 400);
             }
-            */
+            $queryBuilder->andWhere('p.posted >= :createdSince')->setParameter('createdSince', $date);
+
+
             $queryBuilder->setFirstResult($offset)->setMaxResults($limit);
             $articles = $queryBuilder->getQuery()->getResult();
 
