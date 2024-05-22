@@ -3,24 +3,20 @@ session_start();
 
 header('Content-Type: application/json');
 
+// Datenbankverbindung herstellen
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "blog";
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
 $request_method = $_SERVER['REQUEST_METHOD'];
 $path = $_SERVER['PATH_INFO'] ?? '/';
-
-// Simulierte Datenbanken (Array als Beispiel)
-$users = [
-    'user1' => 'password1',
-    'user2' => 'password2'
-];
-
-$articles = [
-    ['id' => 1, 'author' => 'user1', 'title' => 'Article 1', 'created' => '2023-05-20'],
-    ['id' => 2, 'author' => 'user2', 'title' => 'Article 2', 'created' => '2023-05-21'],
-];
-
-$comments = [
-    ['id' => 1, 'article_id' => 1, 'comment' => 'Nice article!', 'author' => 'user2'],
-    ['id' => 2, 'article_id' => 1, 'comment' => 'I disagree', 'author' => 'user1'],
-];
 
 function response($data, $status = 200) {
     http_response_code($status);
@@ -50,7 +46,14 @@ switch ($path) {
             $user = $input['user'] ?? '';
             $pass = $input['pass'] ?? '';
 
-            if (isset($users[$user]) && $users[$user] == $pass) {
+            $stmt = $conn->prepare("SELECT password FROM users WHERE username = ?");
+            $stmt->bind_param("s", $user);
+            $stmt->execute();
+            $stmt->bind_result($hashed_password);
+            $stmt->fetch();
+            $stmt->close();
+
+            if ($hashed_password && password_verify($pass, $hashed_password)) {
                 $_SESSION['user'] = $user;
                 response(['status' => 'logged_in'], 200);
             } else {
@@ -66,24 +69,45 @@ switch ($path) {
         if ($request_method == 'GET') {
             $id = $_GET['id'] ?? null;
             if ($id) {
-                foreach ($articles as $article) {
-                    if ($article['id'] == $id) {
-                        response($article, 200);
-                    }
+                $stmt = $conn->prepare("SELECT * FROM articles WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $article = $result->fetch_assoc();
+                $stmt->close();
+                if ($article) {
+                    response($article, 200);
+                } else {
+                    response(['status' => 'not_found'], 404);
                 }
-                response(['status' => 'not_found'], 404);
             } else {
                 $limit = $_GET['limit'] ?? 3;
                 $offset = $_GET['offset'] ?? 0;
                 $created_since = $_GET['created_since'] ?? date('Y-m-d H:i:s');
                 $author = $_GET['author'] ?? null;
 
-                $filtered_articles = array_filter($articles, function($article) use ($created_since, $author) {
-                    return $article['created'] >= $created_since && (!$author || $article['author'] == $author);
-                });
+                $query = "SELECT * FROM articles WHERE created >= ?";
+                $params = [$created_since];
+                $types = "s";
 
-                $paged_articles = array_slice($filtered_articles, $offset, $limit);
-                response($paged_articles, 200);
+                if ($author) {
+                    $query .= " AND author = ?";
+                    $params[] = $author;
+                    $types .= "s";
+                }
+
+                $query .= " LIMIT ? OFFSET ?";
+                $params[] = (int)$limit;
+                $params[] = (int)$offset;
+                $types .= "ii";
+
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $articles = $result->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                response($articles, 200);
             }
         } elseif ($request_method == 'POST') {
             if (!is_logged_in()) {
@@ -91,13 +115,17 @@ switch ($path) {
             }
 
             $input = json_decode(file_get_contents('php://input'), true);
-            $new_article = [
-                'id' => count($articles) + 1,
-                'author' => get_logged_in_user(),
-                'title' => $input['title'],
-                'created' => date('Y-m-d H:i:s')
-            ];
-            $articles[] = $new_article;
+            $author = get_logged_in_user();
+            $title = $input['title'];
+            $created = date('Y-m-d H:i:s');
+
+            $stmt = $conn->prepare("INSERT INTO articles (author, title, created) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $author, $title, $created);
+            $stmt->execute();
+            $new_article_id = $stmt->insert_id;
+            $stmt->close();
+
+            $new_article = ['id' => $new_article_id, 'author' => $author, 'title' => $title, 'created' => $created];
             response($new_article, 201);
         }
         break;
@@ -106,10 +134,13 @@ switch ($path) {
         if ($request_method == 'GET') {
             $article_id = $_GET['article_id'] ?? null;
             if ($article_id) {
-                $article_comments = array_filter($comments, function($comment) use ($article_id) {
-                    return $comment['article_id'] == $article_id;
-                });
-                response($article_comments, 200);
+                $stmt = $conn->prepare("SELECT * FROM comments WHERE article_id = ?");
+                $stmt->bind_param("i", $article_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $comments = $result->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                response($comments, 200);
             } else {
                 response(['status' => 'article_id_missing'], 400);
             }
@@ -119,13 +150,17 @@ switch ($path) {
             }
 
             $input = json_decode(file_get_contents('php://input'), true);
-            $new_comment = [
-                'id' => count($comments) + 1,
-                'article_id' => $input['article_id'],
-                'comment' => $input['comment'],
-                'author' => get_logged_in_user()
-            ];
-            $comments[] = $new_comment;
+            $article_id = $input['article_id'];
+            $comment = $input['comment'];
+            $author = get_logged_in_user();
+
+            $stmt = $conn->prepare("INSERT INTO comments (article_id, comment, author) VALUES (?, ?, ?)");
+            $stmt->bind_param("iss", $article_id, $comment, $author);
+            $stmt->execute();
+            $new_comment_id = $stmt->insert_id;
+            $stmt->close();
+
+            $new_comment = ['id' => $new_comment_id, 'article_id' => $article_id, 'comment' => $comment, 'author' => $author];
             response($new_comment, 201);
         } elseif ($request_method == 'DELETE') {
             if (!is_logged_in()) {
@@ -135,13 +170,15 @@ switch ($path) {
             $input = json_decode(file_get_contents('php://input'), true);
             $comment_id = $input['id'] ?? null;
             if ($comment_id) {
-                foreach ($comments as $key => $comment) {
-                    if ($comment['id'] == $comment_id) {
-                        unset($comments[$key]);
-                        response(['status' => 'deleted'], 200);
-                    }
+                $stmt = $conn->prepare("DELETE FROM comments WHERE id = ?");
+                $stmt->bind_param("i", $comment_id);
+                $stmt->execute();
+                if ($stmt->affected_rows > 0) {
+                    response(['status' => 'deleted'], 200);
+                } else {
+                    response(['status' => 'not_found'], 404);
                 }
-                response(['status' => 'not_found'], 404);
+                $stmt->close();
             } else {
                 response(['status' => 'id_missing'], 400);
             }
@@ -152,4 +189,6 @@ switch ($path) {
         response(['status' => 'not_found'], 404);
         break;
 }
+
+$conn->close();
 ?>
