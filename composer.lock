@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d10b0c9de69aad7a407d70cde11c30a8",
+    "content-hash": "db0ddaf235c883e3babe788fa67f0751",
     "packages": [
         {
             "name": "doctrine/cache",
@@ -4140,16 +4140,16 @@
         },
         {
             "name": "symfony/runtime",
-            "version": "v7.0.7",
+            "version": "v7.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/runtime.git",
-                "reference": "e120730ef206b31bb5521b1a2389c058adbba9c7"
+                "reference": "9889783c17e8a68fa5e88c8e8a1a85e802558dba"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/runtime/zipball/e120730ef206b31bb5521b1a2389c058adbba9c7",
-                "reference": "e120730ef206b31bb5521b1a2389c058adbba9c7",
+                "url": "https://api.github.com/repos/symfony/runtime/zipball/9889783c17e8a68fa5e88c8e8a1a85e802558dba",
+                "reference": "9889783c17e8a68fa5e88c8e8a1a85e802558dba",
                 "shasum": ""
             },
             "require": {
@@ -4199,7 +4199,7 @@
                 "runtime"
             ],
             "support": {
-                "source": "https://github.com/symfony/runtime/tree/v7.0.7"
+                "source": "https://github.com/symfony/runtime/tree/v7.1.7"
             },
             "funding": [
                 {
@@ -4215,7 +4215,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-04-18T09:29:19+00:00"
+            "time": "2024-11-05T16:45:54+00:00"
         },
         {
             "name": "symfony/security-bundle",
@@ -5948,5 +5948,5 @@
         "ext-iconv": "*"
     },
     "platform-dev": [],
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.3.0"
 }
